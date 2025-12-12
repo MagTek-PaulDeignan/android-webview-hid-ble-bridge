@@ -35,6 +35,8 @@ Modern web applications increasingly rely on Web Bluetooth and Web HID APIs for 
 
 The included demo app loads [MagTek's MMS Demo Page](https://rms.magensa.net/Test/demo/mmsdemo.html) for testing HID device communication.
 
+**Pre-built APK**: [`apk/demo-app.apk`](apk/demo-app.apk) - Ready to install for testing
+
 ## Architecture
 
 ```
@@ -301,6 +303,8 @@ android-webview-hid-ble-bridge/
 │       └── webapi_polyfill.js         # JavaScript API polyfill
 ├── sample/
 │   └── SampleActivity.java            # Integration example
+├── apk/
+│   └── demo-app.apk                   # Pre-built demo APK
 ├── docs/
 │   └── AndroidManifest_permissions.xml
 ├── build.gradle
