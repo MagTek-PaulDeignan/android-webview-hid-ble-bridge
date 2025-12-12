@@ -27,6 +27,14 @@ Modern web applications increasingly rely on Web Bluetooth and Web HID APIs for 
 - Hot-plug event notifications
 - Thread-safe input report handling
 
+### Tested Devices
+
+- **MagTek DynaFlex II Go** - USB HID card reader (Vendor ID: 0x0801)
+
+### Demo Application
+
+The included demo app loads [MagTek's MMS Demo Page](https://rms.magensa.net/Test/demo/mmsdemo.html) for testing HID device communication.
+
 ## Architecture
 
 ```
