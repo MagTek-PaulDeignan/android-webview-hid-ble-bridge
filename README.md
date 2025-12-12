@@ -80,6 +80,9 @@ src/main/assets/
 Add to `AndroidManifest.xml`:
 
 ```xml
+<!-- Internet (for loading web apps) -->
+<uses-permission android:name="android.permission.INTERNET" />
+
 <!-- Bluetooth (Android 12+) -->
 <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
 <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
@@ -271,7 +274,17 @@ hidBridge.setVendorIdFilter(0x0801);  // Your vendor ID
 
 ```
 android-webview-hid-ble-bridge/
-├── src/main/
+├── app/                               # Demo Android application
+│   └── src/main/
+│       ├── java/com/example/hidble/
+│       │   ├── MainActivity.java      # Demo activity
+│       │   ├── WebBluetoothBridge.java
+│       │   ├── WebHIDBridge.java
+│       │   └── AndroidLogBridge.java
+│       ├── assets/
+│       │   └── webapi_polyfill.js
+│       └── AndroidManifest.xml
+├── src/main/                          # Library source (copy to your project)
 │   ├── java/com/example/hidble/
 │   │   ├── WebBluetoothBridge.java    # BLE implementation
 │   │   ├── WebHIDBridge.java          # USB HID implementation
@@ -279,10 +292,11 @@ android-webview-hid-ble-bridge/
 │   └── assets/
 │       └── webapi_polyfill.js         # JavaScript API polyfill
 ├── sample/
-│   ├── SampleActivity.java            # Integration example
-│   └── index.html                     # Demo web page
+│   └── SampleActivity.java            # Integration example
 ├── docs/
 │   └── AndroidManifest_permissions.xml
+├── build.gradle
+├── settings.gradle
 ├── README.md
 └── LICENSE
 ```
