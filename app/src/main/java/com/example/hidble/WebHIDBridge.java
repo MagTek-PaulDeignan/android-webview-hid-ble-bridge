@@ -29,6 +29,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -111,17 +112,19 @@ public class WebHIDBridge {
         }
         else if (android.os.Build.VERSION.SDK_INT > 30)
         {
+            //mPermissionIntent = PendingIntent.getBroadcast(mContext, 0, new Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE);
             mPermissionIntent = PendingIntent.getBroadcast(activity, 0, new Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_MUTABLE);
+            //mPermissionIntent = PendingIntent.getBroadcast(mContext, 0, new Intent(ACTION_USB_PERMISSION),0);
         }
         else
         {
             mPermissionIntent = PendingIntent.getBroadcast(activity, 0, new Intent(ACTION_USB_PERMISSION), 0);
         }
-
         // Register USB permission receiver
         IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
         filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
+        //activity.registerReceiver(usbReceiver, filter);
         if (android.os.Build.VERSION.SDK_INT >= 34)
         {
             activity.registerReceiver(usbReceiver, filter, RECEIVER_EXPORTED);
@@ -280,6 +283,9 @@ public class WebHIDBridge {
                     return;
                 }
             }
+            //Log.e(TAG, "openDevice FAILED - no permission");
+            //executeCallback(callbackName, createErrorResult("No permission for device"));
+            //return;
         }
 
         try {
@@ -319,7 +325,7 @@ public class WebHIDBridge {
                     }
                 }
             }
-
+/*
             if (inputEndpoint == null || outputEndpoint == null) {
                 currentConnection.releaseInterface(currentInterface);
                 currentConnection.close();
@@ -328,13 +334,14 @@ public class WebHIDBridge {
                 executeCallback(callbackName, createErrorResult("Failed to find input/output endpoints"));
                 return;
             }
-
+*/
             currentDevice = device;
             isDeviceOpen = true;
 
             Log.i(TAG, "openDevice SUCCESS - starting input thread");
 
-            startInputReportThread();
+            if (inputEndpoint != null)
+                startInputReportThread();
 
             executeCallback(callbackName, createSuccessResult("{\"opened\": true}"));
 
@@ -407,6 +414,114 @@ public class WebHIDBridge {
             }
         }).start();
     }
+
+    /**
+     * Send HID feature report
+     *
+     * @param reportId Report ID (usually 1)
+     * @param hexData Hex string data to send
+     * @param callbackName JavaScript callback function name
+     */
+    @JavascriptInterface
+    public void sendFeatureReport(int reportId, String hexData, String callbackName)
+    {
+        byte[] data = hexToBytes(hexData);
+
+        int reportCount = 61;
+        byte reportData[] = new byte[reportCount];
+
+        if (reportId == 0) {
+            System.arraycopy(data, 0, reportData, 0, data.length);
+        } else {
+            reportData[0] = (byte) reportId;
+            System.arraycopy(data, 0, reportData, 1, data.length-1);
+        }
+
+        boolean result = setFeatureReport((byte) reportId, reportData);
+
+        if (result)
+        {
+            executeCallback(callbackName, createSuccessResult("{}"));
+        }
+        else
+        {
+            executeCallback(callbackName, createErrorResult("Failed to send feature report: " + hexData));
+        }
+    }
+
+    protected boolean setFeatureReport(byte reportId, byte[] report)
+    {
+        //Log.i(TAG, "setFeatureReport ReportId=0x" + String.format("%02X", reportId));
+        //Log.i(TAG, "setFeatureReport Report=" + MTParser.getHexString(report));
+
+        boolean result = false;
+
+        if (currentConnection != null)
+        {
+            // Send command via a control request
+
+            int reportTypeAndId = ((0x0300) | (reportId & 0x00FF));
+            Log.i(TAG, "setFeatureReport ReportTypeAndId=0x" +  String.format("%04X", reportTypeAndId));
+
+            //int count = m_connection.controlTransfer(0x21, 0x09, reportTypeAndId, 0, report, report.length, 0);
+            int count = currentConnection.controlTransfer(0x21, 0x09, reportTypeAndId, 0, report, report.length, 5000);
+            Log.i(TAG, "setFeatureReport Written=" + count);
+
+
+            result = true;
+        }
+
+        return result;
+    }
+
+    /**
+     * Receive HID feature report
+     *
+     * @param reportId Report ID (usually 1)
+     * @param reportSize Report Size
+     * @param timeout Timeout (ms)
+     * @param callbackName JavaScript callback function name
+     */
+    @JavascriptInterface
+    public void receiveFeatureReport(int reportId, int reportSize, int timeout, String callbackName)
+    {
+        byte[] hexBytes = new byte[reportSize];
+
+        int result = getFeatureReport((byte) reportId, hexBytes, timeout);
+
+        if (result > 0)
+        {
+            executeCallback(callbackName, createSuccessResult(bytesToHex(hexBytes)));
+        }
+        else
+        {
+            executeCallback(callbackName, createErrorResult("Failed to receive feature report: id=" + reportId + ", size=" + reportSize));
+        }
+    }
+
+    public int getFeatureReport(byte reportId, byte[] report, int timeout)
+    {
+        //Log.i(TAG, "getFeatureReport ReportId=0x" + String.format("%02X", reportId));
+
+        int result = 0;
+
+        if (currentConnection != null)
+        {
+            int reportTypeAndId = ((0x0300) | (reportId & 0x00FF));
+            //Log.i(TAG, "getFeatureReport ReportTypeAndId=0x" +  String.format("%04X", reportTypeAndId));
+
+            result = currentConnection.controlTransfer(0xA1, 0x01, reportTypeAndId, 0, report, report.length, timeout);
+            //Log.i(TAG, "getFeatureReport Length=" + result);
+
+            if (result > 0)
+            {
+                byte data[] = Arrays.copyOfRange(report, 0, result);
+            }
+        }
+
+        return result;
+    }
+
 
     /**
      * Close HID device - mimics device.close()
@@ -508,10 +623,10 @@ public class WebHIDBridge {
                         if (handler != null) {
                             handler.post(() -> {
                                 String jsCode = String.format(
-                                    "if(window._hidInputReportHandler) { " +
-                                    "  window._hidInputReportHandler('%s'); " +
-                                    "}",
-                                    hexData
+                                        "if(window._hidInputReportHandler) { " +
+                                                "  window._hidInputReportHandler('%s'); " +
+                                                "}",
+                                        hexData
                                 );
                                 executeJavaScript(jsCode);
                             });
@@ -676,7 +791,8 @@ public class WebHIDBridge {
         try {
             JSONObject result = new JSONObject();
             result.put("success", true);
-            result.put("data", new JSONObject(data));
+            //result.put("data", new JSONObject(data));
+            result.put("data", data);
             return result.toString();
         } catch (JSONException e) {
             return "{\"success\": true, \"data\": {}}";

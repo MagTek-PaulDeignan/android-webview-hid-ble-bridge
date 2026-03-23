@@ -383,11 +383,12 @@
             this.opened = true;
 
             window._hidInputReportHandler = (hexData) => {
+              const report_id = parseInt(hexData.substring(0, 2));
               const dataView = this._hexToDataView(hexData);
               const event = {
                 data: dataView,
                 device: this,
-                reportId: 0
+                reportId: report_id
               };
               this._inputReportCallbacks.forEach(callback => callback(event));
             };
@@ -429,6 +430,45 @@
         };
 
         AndroidWebHID.sendReport(reportId, hexData, '_hidSendReportCallback');
+      });
+    }
+
+    sendFeatureReport(reportId, data) {
+      if (!this.opened) {
+        return Promise.reject(new Error('Device not opened'));
+      }
+
+      return new Promise((resolve, reject) => {
+        const hexData = this._arrayBufferToHex(data);
+
+        window._hidSendFeatureReportCallback = (result) => {
+          if (result.success) {
+            resolve();
+          } else {
+            reject(new Error(result.error || 'Send feature report failed'));
+          }
+        };
+
+        AndroidWebHID.sendFeatureReport(reportId, hexData, '_hidSendFeatureReportCallback');
+      });
+    }
+
+    receiveFeatureReport(reportId) {
+      if (!this.opened) {
+        return Promise.reject(new Error('Device not opened'));
+      }
+
+      return new Promise((resolve, reject) => {
+
+        window._hidReceiveFeatureReportCallback = (result) => {
+          if (result.success) {
+            resolve(this._hexToDataView(result.data));
+          } else {
+            reject(new Error(result.error || 'Receive feature report failed'));
+          }
+        };
+
+        AndroidWebHID.receiveFeatureReport(reportId, 61, 5000, '_hidReceiveFeatureReportCallback');
       });
     }
 

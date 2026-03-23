@@ -11,12 +11,15 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,6 +34,7 @@ public class MainActivity extends Activity {
     private static final int PERMISSION_REQUEST_CODE = 1001;
 
     private WebView webView;
+
     private WebBluetoothBridge webBluetoothBridge;
     private WebHIDBridge webHIDBridge;
     private AndroidLogBridge androidLogBridge;
@@ -67,8 +71,8 @@ public class MainActivity extends Activity {
             }
         });
 
-        // Load MagTek demo page
-        webView.loadUrl("https://rms.magensa.net/Test/demo/mmsdemo.html");
+        // Load MagTek Demo Page
+        webView.loadUrl("https://rms.magensa.net/Test/demo/index.html");
     }
 
     private void configureWebView() {
@@ -118,9 +122,9 @@ public class MainActivity extends Activity {
     private void requestRequiredPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             String[] permissions = {
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.ACCESS_FINE_LOCATION
             };
 
             List<String> permissionsToRequest = new ArrayList<>();
