@@ -19,6 +19,7 @@ import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbEndpoint;
 import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
+import android.hardware.usb.UsbRequest;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -29,6 +30,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -56,6 +58,21 @@ public class WebHIDBridge {
 
     // Default vendor ID (customize for your devices)
     private static final int DEFAULT_VENDOR_ID = 0x0801;
+
+    private static short PID_KB              = 0x0001;
+    private static short PID_SWIPE           = 0x0011;
+    private static short PID_BOOTLOADER      = 0x0012;
+    private static short PID_INSERT          = 0x0013;
+    private static short PID_AUDIO           = 0x0017;
+    private static short PID_EMV_SWIPE       = 0x0019;
+    private static short PID_EMV             = 0x001A;
+    private static short PID_TDYNAMO         = 0x001C;
+    private static short PID_KDYNAMO         = 0x001D;
+    private static short PID_DYNAWAVE        = 0x001E;
+    private static short PID_IDYNAMO6        = 0x001F;
+    private static short PID_IDYNAMO5G3      = 0x0020;
+    private static short PID_IDYNAMO5G3_KB   = 0x0021;
+    private static short PID_ODM_BOOTLOADER  = 0x5357;
 
     private Activity activity;
     private WebView webView;
@@ -212,7 +229,8 @@ public class WebHIDBridge {
                 return;
             }
 
-            if (usbManager.hasPermission(matchedDevice)) {
+            if (usbManager.hasPermission(matchedDevice))
+            {
                 connectedDevices.put(matchedDevice.getDeviceName(), matchedDevice);
                 JSONArray deviceArray = new JSONArray();
                 deviceArray.put(createDeviceJson(matchedDevice));
@@ -222,8 +240,13 @@ public class WebHIDBridge {
                 result.put("devices", deviceArray);
                 executeCallback(callbackName, result.toString());
 
-            } else {
+            }
+            else
+            {
                 pendingPermissionCallback = callbackName;
+
+                usbManager.requestPermission(matchedDevice, mPermissionIntent);
+/*
                 PendingIntent permissionIntent = PendingIntent.getBroadcast(
                         activity,
                         0,
@@ -231,6 +254,7 @@ public class WebHIDBridge {
                         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
                 );
                 usbManager.requestPermission(matchedDevice, permissionIntent);
+*/
             }
 
         } catch (JSONException e) {
@@ -427,11 +451,21 @@ public class WebHIDBridge {
     {
         byte[] data = hexToBytes(hexData);
 
-        int reportCount = 61;
-        byte reportData[] = new byte[reportCount];
+        Log.i(TAG, "sendFeatureReport Report ID: " + reportId);
+        Log.i(TAG, "sendFeatureReport Data Length: " + data.length);
+
+        int reportSize = data.length;
+
+        if (reportId == 0)
+            reportSize = 60;
+
+        Log.i(TAG, "sendFeatureReport Report Size: " + reportId);
+
+        byte reportData[] = new byte[reportSize];
 
         if (reportId == 0) {
-            System.arraycopy(data, 0, reportData, 0, data.length);
+            System.arraycopy(data, 0, reportData, 0, data.length-1);
+            //data[0] = 0;
         } else {
             reportData[0] = (byte) reportId;
             System.arraycopy(data, 0, reportData, 1, data.length-1);
@@ -478,13 +512,22 @@ public class WebHIDBridge {
      * Receive HID feature report
      *
      * @param reportId Report ID (usually 1)
-     * @param reportSize Report Size
-     * @param timeout Timeout (ms)
      * @param callbackName JavaScript callback function name
      */
     @JavascriptInterface
-    public void receiveFeatureReport(int reportId, int reportSize, int timeout, String callbackName)
+    public void receiveFeatureReport(int reportId, String callbackName)
     {
+        Log.i(TAG, "receiveFeatureReport Report ID: " + reportId);
+
+        int timeout = 5000;
+
+        int reportSize = 61;
+
+        if (reportId == 0)
+            reportSize = 60;
+
+        Log.i(TAG, "receiveFeatureReport Report Size: " + reportSize);
+
         byte[] hexBytes = new byte[reportSize];
 
         int result = getFeatureReport((byte) reportId, hexBytes, timeout);
@@ -595,6 +638,119 @@ public class WebHIDBridge {
     }
 
     private void startInputReportThread() {
+        shouldReadInput = true;
+        Log.i(TAG, "Starting input report thread");
+        inputReportThread = new Thread(() -> {
+
+            int inputReportSize = inputEndpoint.getMaxPacketSize();
+            Log.i(TAG, "*** Input Endpoint MaxPacketSize=" + inputReportSize);
+
+            if (currentDevice.getProductId() < 0x2020)
+                inputReportSize = 1024;
+
+            Log.i(TAG, "*** inputReportSize=" + inputReportSize);
+
+            ByteBuffer inputBuffer = ByteBuffer.allocate(inputReportSize);
+
+            UsbRequest request = new UsbRequest();
+            request.initialize(currentConnection, inputEndpoint);
+
+            boolean requestPending = false;
+
+            while (shouldReadInput && currentConnection != null && inputEndpoint != null)
+            {
+                try
+                {
+                    //int bytesRead = currentConnection.bulkTransfer(inputEndpoint, buffer, buffer.length, 100);
+                    //readCount++;
+
+                    //ByteBuffer inputBuffer = ByteBuffer.allocate(inputReportSize);
+
+                    byte[] inputData = null;
+                    int dataLength = 0;
+
+                    try
+                    {
+                        if (requestPending == false)
+                        {
+                            //request.queue(inputBuffer, inputReportMaxSize - 1);
+                            //request.queue(inputBuffer, 64);
+                            request.queue(inputBuffer, inputReportSize);
+                            //request.queue(inputBuffer);
+                            requestPending = true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.i(TAG, "*** Input request.queue exception: " + ex.getMessage()); // test
+                    }
+
+                    Log.i(TAG, "*** Input USBRequest requestWait"); // test
+
+                    if (currentConnection.requestWait() == request)
+                    {
+                        requestPending = false;
+
+                        dataLength = inputBuffer.position();
+
+                        if (dataLength > 0)
+                        {
+                            inputData = new byte[dataLength];
+                            System.arraycopy(inputBuffer.array(), 0, inputData, 0, dataLength);
+
+                            if (currentDevice.getProductId() == PID_SWIPE)
+                                inputData[0] = 1;
+
+                            startProcessInputData(inputData);
+                        }
+                    }
+                    else
+                    {
+                        Log.i(TAG, "*** Input USBRequest not the same");
+                    }
+                }
+                catch (Exception e)
+                {
+                    try
+                    {
+                        Thread.sleep(100);
+                    } catch (InterruptedException ie) {
+                        break;
+                    }
+                }
+            }
+
+            Log.i(TAG, "Input report thread STOPPED");
+        });
+
+        inputReportThread.start();
+    }
+
+    protected void startProcessInputData(byte[] inputData)
+    {
+        if (inputData != null && inputData.length > 0)
+        {
+            int len = inputData.length;
+            String hexData = bytesToHex(inputData);
+
+            Log.i(TAG, "Input report received (" + len + "): " + hexData);
+
+            final Handler handler = mainHandler;
+            if (handler != null) {
+                handler.post(() -> {
+                    String jsCode = String.format(
+                            "if(window._hidInputReportHandler) { " +
+                                    "  window._hidInputReportHandler('%s'); " +
+                                    "}",
+                            hexData
+                    );
+                    executeJavaScript(jsCode);
+                });
+            }
+        }
+    }
+
+    private void startInputReportThread_0() {
         shouldReadInput = true;
         Log.i(TAG, "Starting input report thread");
         inputReportThread = new Thread(() -> {

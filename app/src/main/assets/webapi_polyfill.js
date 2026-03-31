@@ -468,7 +468,7 @@
           }
         };
 
-        AndroidWebHID.receiveFeatureReport(reportId, 61, 5000, '_hidReceiveFeatureReportCallback');
+        AndroidWebHID.receiveFeatureReport(reportId, '_hidReceiveFeatureReportCallback');
       });
     }
 
